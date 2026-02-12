@@ -10,6 +10,7 @@ interface PriceItem {
   careDetail: string;
   visitCycle: string;
   careCombined: string;
+  activation: number | null;
   price3y: number | null;
   price4y: number | null;
   price5y: number | null;
@@ -127,6 +128,10 @@ export function formatPriceResponse(item: PriceItem): string {
   if (item.price5y) lines.push(`  • 5년: ${formatPrice(item.price5y)}`);
   if (item.price4y) lines.push(`  • 4년: ${formatPrice(item.price4y)}`);
   if (item.price3y) lines.push(`  • 3년: ${formatPrice(item.price3y)}`);
+
+  // 활성화 금액
+  lines.push('');
+  lines.push(`🎁 활성화 금액: ${item.activation ? formatPrice(item.activation) : '-'}`);
 
   if (item.prepay30_monthly || item.prepay50_monthly) {
     lines.push('');

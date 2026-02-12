@@ -23,6 +23,7 @@ for (const sheetName of sheets) {
 
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
+  // 데이터는 5행(인덱스4)부터 시작
   for (let i = 4; i < rows.length; i++) {
     const row = rows[i];
     if (!row || !row[4]) continue;
@@ -30,7 +31,7 @@ for (const sheetName of sheets) {
     const modelFull = String(row[4] || '').trim();
     if (!modelFull) continue;
 
-    const careCombined = String(row[10] || '').trim();
+    const careCombined = String(row[9] || '').trim();  // J열: 구분자
     const key = `${modelFull}|${careCombined}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -43,19 +44,20 @@ for (const sheetName of sheets) {
 
     allData.push({
       modelFull,
-      product: String(row[3] || '').trim(),
-      careType: String(row[7] || '').trim(),
-      careDetail: String(row[8] || '').trim(),
-      visitCycle: String(row[9] || '').trim(),
-      careCombined,
-      price3y: safeNum(row[12]),
-      price4y: safeNum(row[13]),
-      price5y: safeNum(row[16]),
-      price6y: safeNum(row[19]),
-      prepay30_lump: safeNum(row[22]),
-      prepay30_monthly: safeNum(row[23]),
-      prepay50_lump: safeNum(row[26]),
-      prepay50_monthly: safeNum(row[27]),
+      product: String(row[3] || '').trim(),       // D열: 제품
+      careType: String(row[6] || '').trim(),       // G열: 케어십형태
+      careDetail: String(row[7] || '').trim(),     // H열: 케어십구분
+      visitCycle: String(row[8] || '').trim(),     // I열: 방문주기
+      careCombined,                                // J열: 구분자
+      activation: safeNum(row[10]),                // K열: 활성화 금액
+      price3y: safeNum(row[11]),                   // L열: 3년 기본요금
+      price4y: safeNum(row[12]),                   // M열: 4년 기본요금
+      price5y: safeNum(row[15]),                   // P열: 5년 기본요금
+      price6y: safeNum(row[18]),                   // S열: 6년 기본요금
+      prepay30_lump: safeNum(row[21]),             // V열: 30% 선납금
+      prepay30_monthly: safeNum(row[22]),           // W열: 30% 월구독
+      prepay50_lump: safeNum(row[25]),             // Z열: 50% 선납금
+      prepay50_monthly: safeNum(row[26]),           // AA열: 50% 월구독
     });
   }
 }
