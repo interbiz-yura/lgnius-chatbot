@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchFaq } from '../../../lib/search';
-import { searchPrice, getPriceByModelAndCare, formatPriceResponse, looksLikeModelName } from '../../../lib/priceSearch';
+import { searchPrice, searchPriceWithFilters, formatPriceResponse, looksLikeModelName } from '../../../lib/priceSearch';
 
 // ═══════════════════════════════════════
 // 카카오 오픈빌더 스킬 API (FAQ + 가격표 통합)
@@ -81,17 +81,31 @@ function categoryMenuResponse(category: string) {
   return makeTextResponse(cat.title, [], quickReplies);
 }
 
-// ── 가격 검색 (케어십 선택 버튼) ──
-function priceSearchResponse(query: string) {
-  const result = searchPrice(query);
+// ── 가격 검색: 단계별 케어십 선택 ──
+// 입력 형태: "모델명" / "모델명::G값" / "모델명::G값::H값" / "모델명::G값::H값::I값"
+function priceStepResponse(utterance: string) {
+  const parts = utterance.split('::');
+  const modelQuery = parts[0].trim();
+  const gFilter = parts[1]?.trim() || null;  // 케어십형태
+  const hFilter = parts[2]?.trim() || null;  // 케어십구분
+  const iFilter = parts[3]?.trim() || null;  // 방문주기
+
+  // 모델 검색
+  const result = searchPrice(modelQuery);
   if (!result) return null;
 
-  const careTypes = result.careTypes;
+  // 필터 적용
+  let items = result.careTypes;
+  if (gFilter) items = items.filter(i => i.careType === gFilter);
+  if (hFilter) items = items.filter(i => i.careDetail === hFilter);
+  if (iFilter) items = items.filter(i => i.visitCycle === iFilter);
 
-  // 케어십 1개 → 바로 가격 표시
-  if (careTypes.length === 1) {
+  if (items.length === 0) return null;
+
+  // 최종 1개 → 가격 표시
+  if (items.length === 1) {
     return makeTextResponse(
-      formatPriceResponse(careTypes[0]),
+      formatPriceResponse(items[0]),
       [],
       [
         { messageText: '처음으로', action: 'message', label: '🏠 처음으로' },
@@ -100,42 +114,81 @@ function priceSearchResponse(query: string) {
     );
   }
 
-  // 케어십 여러 개 → 선택 버튼
-  const quickReplies = careTypes.slice(0, 10).map(item => ({
-    messageText: `${query} ${item.careType}`,
-    action: 'message' as const,
-    label: `${item.careType}${item.visitCycle ? '/' + item.visitCycle : ''}`,
-  }));
-  quickReplies.push({ messageText: '처음으로', action: 'message' as const, label: '🏠 처음으로' });
+  // ── 다음 단계 결정 ──
 
-  const prices = careTypes
-    .map(c => c.price6y || c.price5y || c.price4y || c.price3y)
-    .filter((p): p is number => p !== null);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const priceRange = minPrice === maxPrice
-    ? `월 ${minPrice.toLocaleString('ko-KR')}원`
-    : `월 ${minPrice.toLocaleString('ko-KR')}원 ~ ${maxPrice.toLocaleString('ko-KR')}원`;
+  // 1차: G열(케어십형태) 선택
+  if (!gFilter) {
+    const gTypes = Array.from(new Set(items.map(i => i.careType).filter(v => v)));
+    if (gTypes.length === 1) {
+      // G가 1개면 자동 건너뛰기 → H 확인
+      return priceStepResponse(`${modelQuery}::${gTypes[0]}`);
+    }
+    const quickReplies = gTypes.slice(0, 10).map(g => ({
+      messageText: `${modelQuery}::${g}`,
+      action: 'message' as const,
+      label: g,
+    }));
+    quickReplies.push({ messageText: '처음으로', action: 'message' as const, label: '🏠 처음으로' });
 
+    return makeTextResponse(
+      `📦 ${result.product} | ${result.modelFull}\n\n케어십 유형을 선택해주세요!`,
+      [],
+      quickReplies
+    );
+  }
+
+  // 2차: H열(케어십구분) 선택
+  if (!hFilter) {
+    const hTypes = Array.from(new Set(items.map(i => i.careDetail).filter(v => v)));
+    if (hTypes.length <= 1) {
+      // H가 0~1개면 자동 건너뛰기 → I 확인
+      return priceStepResponse(`${modelQuery}::${gFilter}::${hTypes[0] || ''}`);
+    }
+    const quickReplies = hTypes.slice(0, 10).map(h => ({
+      messageText: `${modelQuery}::${gFilter}::${h}`,
+      action: 'message' as const,
+      label: h,
+    }));
+    quickReplies.push({ messageText: '처음으로', action: 'message' as const, label: '🏠 처음으로' });
+
+    return makeTextResponse(
+      `📦 ${result.product} | ${result.modelFull}\n🔧 케어십: ${gFilter}\n\n세부 유형을 선택해주세요!`,
+      [],
+      quickReplies
+    );
+  }
+
+  // 3차: I열(방문주기) 선택
+  if (!iFilter) {
+    const iTypes = Array.from(new Set(items.map(i => i.visitCycle).filter(v => v)));
+    if (iTypes.length <= 1) {
+      // I가 0~1개면 → 최종 결과 (첫번째 항목 표시)
+      return makeTextResponse(
+        formatPriceResponse(items[0]),
+        [],
+        [
+          { messageText: '처음으로', action: 'message', label: '🏠 처음으로' },
+          { messageText: '가격표', action: 'message', label: '💰 다른 모델 조회' },
+        ]
+      );
+    }
+    const quickReplies = iTypes.slice(0, 10).map(iv => ({
+      messageText: `${modelQuery}::${gFilter}::${hFilter}::${iv}`,
+      action: 'message' as const,
+      label: iv,
+    }));
+    quickReplies.push({ messageText: '처음으로', action: 'message' as const, label: '🏠 처음으로' });
+
+    return makeTextResponse(
+      `📦 ${result.product} | ${result.modelFull}\n🔧 케어십: ${gFilter} > ${hFilter}\n\n방문주기를 선택해주세요!`,
+      [],
+      quickReplies
+    );
+  }
+
+  // 모든 필터 적용 후 첫번째 결과 표시
   return makeTextResponse(
-    `📦 ${result.product} | ${result.modelFull}\n\n이 모델은 ${careTypes.length}가지 케어십 유형이 있어요.\n💰 ${priceRange}\n\n아래에서 케어십 유형을 선택해주세요!`,
-    [],
-    quickReplies
-  );
-}
-
-// ── 모델 + 케어십 직접 조회 ──
-function priceWithCareResponse(query: string) {
-  const parts = query.split(/\s+/);
-  if (parts.length < 2) return null;
-
-  const modelPart = parts[0];
-  const carePart = parts.slice(1).join(' ');
-  const item = getPriceByModelAndCare(modelPart, carePart);
-  if (!item) return null;
-
-  return makeTextResponse(
-    formatPriceResponse(item),
+    formatPriceResponse(items[0]),
     [],
     [
       { messageText: '처음으로', action: 'message', label: '🏠 처음으로' },
@@ -164,7 +217,6 @@ function searchResultResponse(query: string) {
   const best = results[0];
   let answer = best.item.answer;
 
-  // URL이 있으면 답변 텍스트 하단에 링크 안내 추가
   if (best.item.url && best.item.url.trim() !== '') {
     const btnLabel = best.item.urlButton || '상세보기';
     answer += `\n\n🔗 ${btnLabel}: ${best.item.url}`;
@@ -208,14 +260,16 @@ export async function POST(request: NextRequest) {
     };
     if (categoryKeywords[utterance]) return NextResponse.json(categoryMenuResponse(categoryKeywords[utterance]));
 
-    // 3. 모델명 + 케어십 유형 (예: "A720WA 자가관리")
-    const careResponse = priceWithCareResponse(utterance);
-    if (careResponse) return NextResponse.json(careResponse);
+    // 3. 단계별 가격 조회 (:: 구분자 포함)
+    if (utterance.includes('::')) {
+      const stepResult = priceStepResponse(utterance);
+      if (stepResult) return NextResponse.json(stepResult);
+    }
 
-    // 4. 모델명 단독 (예: "A720WA") → 가격 조회
+    // 4. 모델명 단독 (예: "A720WA") → 가격 단계별 조회
     if (looksLikeModelName(utterance)) {
-      const priceResult = priceSearchResponse(utterance);
-      if (priceResult) return NextResponse.json(priceResult);
+      const stepResult = priceStepResponse(utterance);
+      if (stepResult) return NextResponse.json(stepResult);
     }
 
     // 5. FAQ 키워드 검색
