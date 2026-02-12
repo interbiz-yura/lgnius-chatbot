@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchFaq } from '../../../lib/search';
-import { searchPrice, searchPriceWithFilters, formatPriceResponse, looksLikeModelName } from '../../../lib/priceSearch';
+import { searchPrice, formatPriceResponse, looksLikeModelName } from '../../../lib/priceSearch';
 
 // ═══════════════════════════════════════
 // 카카오 오픈빌더 스킬 API (FAQ + 가격표 통합)
