@@ -96,7 +96,8 @@ function extractKeywords(text: string): string[] {
   });
   
   // 원래 단어도 유지 (대표어 + 원래 단어 모두 검색에 사용)
-  const allKeywords = [...new Set([...meaningful, ...mapped])];
+  const combined = [...meaningful, ...mapped];
+  const allKeywords = Array.from(new Set(combined));
   
   return allKeywords;
 }
@@ -171,7 +172,7 @@ export function searchFaq(query: string): SearchResult[] {
       results.push({
         item,
         score,
-        matchedKeywords: [...new Set(matchedKeywords)],
+        matchedKeywords: Array.from(new Set(matchedKeywords)),
       });
     }
   }
@@ -198,8 +199,8 @@ export function searchFaq(query: string): SearchResult[] {
 // ═══════════════════════════════════════
 export function getCategories(): string[] {
   const data = faqData as FaqItem[];
-  const cats = new Set(data.map(item => item.category2));
-  return [...cats].filter(c => c).sort();
+  const cats = Array.from(new Set(data.map(item => item.category2)));
+  return cats.filter(c => c).sort();
 }
 
 // ═══════════════════════════════════════
