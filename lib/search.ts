@@ -8,6 +8,7 @@ interface FaqItem {
   answer: string;
   url: string;
   urlButton: string;
+  quickButtons?: string[];
 }
 
 interface SearchResult {
@@ -15,9 +16,6 @@ interface SearchResult {
   score: number;
 }
 
-// ═══════════════════════════════════════
-// 유사어/동의어 사전
-// ═══════════════════════════════════════
 const synonymMap: Record<string, string> = {
   '취소금': '해약금', '취소비용': '해약금', '패널티': '해약금', '해약비': '해약금', '중도해지금': '해약금',
   '취소': '해지', '구독취소': '해지', '그만': '해지', '안할래': '해지',
@@ -67,14 +65,8 @@ function applySynonyms(query: string): string {
   return result;
 }
 
-// ═══════════════════════════════════════
-// 범용 키워드 (짧고 여러 항목에 걸리는 것)
-// 이것들은 단독 매칭 시 점수를 낮게 줌
-// ═══════════════════════════════════════
 const genericKeywords = new Set([
-  '카드', '방법', '요금', '납부', '처리', '등록', '결제',
-  '항목', '종류', '실적', '배송', '변경', '전환', '할인',
-  '혜택', '이사', '고장', '교체', '파손',
+  '카드', '요금', '납부', '실적', '할인', '혜택',
 ]);
 
 export function searchFaq(query: string): SearchResult[] {
@@ -88,7 +80,6 @@ export function searchFaq(query: string): SearchResult[] {
     let score = 0;
     let matchedCount = 0;
 
-    // 대표 질문과 정확히 일치 → 최고점
     if (queryConverted === item.question.toLowerCase()) {
       score += 100;
     }
@@ -98,11 +89,9 @@ export function searchFaq(query: string): SearchResult[] {
       const isGeneric = genericKeywords.has(kwLower);
 
       if (queryConverted === kwLower) {
-        // 정확히 일치
         score += 20;
         matchedCount++;
       } else if (queryConverted.includes(kwLower)) {
-        // 쿼리에 키워드 포함 — 범용 키워드는 낮은 점수
         if (isGeneric) {
           score += 3;
         } else {
@@ -110,18 +99,15 @@ export function searchFaq(query: string): SearchResult[] {
           matchedCount++;
         }
       } else if (kwLower.includes(queryConverted) && queryConverted.length >= 2) {
-        // 키워드에 쿼리 포함
         score += 5;
         matchedCount++;
       }
     }
 
-    // 여러 키워드가 동시에 매칭되면 보너스 (복합 질문에 강함)
     if (matchedCount >= 2) {
       score += matchedCount * 5;
     }
 
-    // 대표 질문 부분 매칭
     const questionLower = item.question.toLowerCase();
     if (queryConverted !== questionLower) {
       if (queryConverted.includes(questionLower)) {
