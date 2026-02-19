@@ -1,6 +1,12 @@
 import faqData from '../data/faq.json';
 
-interface FaqItem {
+interface QuickButton {
+  label: string;
+  text: string;
+}
+
+export interface FaqItem {
+  type: string;         // "menu" | "menu_with_answer" | "answer"
   category: string;
   category2: string;
   question: string;
@@ -8,7 +14,7 @@ interface FaqItem {
   answer: string;
   url: string;
   urlButton: string;
-  quickButtons?: string[];
+  quickButtons?: QuickButton[];
 }
 
 interface SearchResult {
@@ -16,6 +22,9 @@ interface SearchResult {
   score: number;
 }
 
+// ═══════════════════════════════════════
+// 유사어 사전
+// ═══════════════════════════════════════
 const synonymMap: Record<string, string> = {
   '취소금': '해약금', '취소비용': '해약금', '패널티': '해약금', '해약비': '해약금', '중도해지금': '해약금',
   '취소': '해지', '구독취소': '해지', '그만': '해지', '안할래': '해지',
@@ -41,8 +50,7 @@ const synonymMap: Record<string, string> = {
   '에어콘': '에어컨', '냉방기': '에어컨',
   '식세': '식기세척기',
   '냉장': '냉장고', '김냉': '김치냉장고',
-  '공청': '공기청정기',
-  '정수': '정수기',
+  '공청': '공기청정기', '정수': '정수기',
   '혜액': '혜택',
   '핏엔맥스': '핏앤맥스', '핏엔맥': '핏앤맥',
   '돈 내야': '해약금', '얼마나 내야': '해약금',
@@ -69,6 +77,13 @@ const genericKeywords = new Set([
   '카드', '요금', '납부', '실적', '할인', '혜택',
 ]);
 
+// ── question 정확히 일치하는 항목 찾기 ──
+export function findByQuestion(question: string): FaqItem | null {
+  const data = faqData as FaqItem[];
+  return data.find(item => item.question === question) || null;
+}
+
+// ── 키워드 검색 (메뉴 항목 제외, 답변만) ──
 export function searchFaq(query: string): SearchResult[] {
   const data = faqData as FaqItem[];
   const queryLower = query.toLowerCase().trim();
@@ -77,6 +92,9 @@ export function searchFaq(query: string): SearchResult[] {
   const results: SearchResult[] = [];
 
   for (const item of data) {
+    // 메뉴 항목은 검색 제외 (직접 연결만)
+    if (item.type === 'menu') continue;
+
     let score = 0;
     let matchedCount = 0;
 
