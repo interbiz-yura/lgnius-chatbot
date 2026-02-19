@@ -39,12 +39,10 @@ function categoryMenuResponse(category: string) {
         { label: '미납 정책', text: '미납/납부자 변경' },
         { label: '해약금', text: '해약금' },
         { label: '명의변경', text: '명의변경' },
-        { label: '결합할인', text: '결합할인율' },
-        { label: '해지', text: '구독해약' },
-        { label: '선납', text: '선납 할인율' },
+        { label: '결합할인', text: '결합할인' },
+        { label: '해지', text: '해지메뉴' },
+        { label: '선납', text: '선납' },
         { label: '일시불 전환', text: '일시불 전환' },
-        { label: '이사 시', text: '이삿짐센터' },
-        { label: '해외 이민', text: '해외 이민' },
       ],
     },
     '제휴카드': {
@@ -87,8 +85,6 @@ function categoryMenuResponse(category: string) {
 
 // ═══════════════════════════════════════
 // 제휴카드 단계별 플로우
-// 제휴카드 → 카드사 선택 → 혜택/실적확인/실적제외
-// 각 세부 답변 뒤 → [카드 혜택] [다른 카드 조회]
 // ═══════════════════════════════════════
 const cardDetailMenu: Record<string, { label: string; text: string }[]> = {
   '국민카드': [
@@ -114,7 +110,6 @@ const cardDetailMenu: Record<string, { label: string; text: string }[]> = {
   ],
 };
 
-// 카드사 세부 답변에 해당하는 대표질문 목록 (이 질문이 매칭되면 카드 전용 버튼 사용)
 const cardDetailQuestions = new Set([
   '국민카드 할인', '국민카드 실적확인', '국민카드 실적제외',
   '롯데카드 혜액', '롯데카드 실적 확인', '롯데카드 실적제외',
@@ -122,7 +117,6 @@ const cardDetailQuestions = new Set([
   '우리카드 할인', '우리카드 실적확인', '우리카드 실적제외 항목',
 ]);
 
-// 대표질문 → 어느 카드사 소속인지 매핑
 function getCardNameFromQuestion(question: string): string | null {
   for (const [cardName, items] of Object.entries(cardDetailMenu)) {
     for (const item of items) {
@@ -135,24 +129,20 @@ function getCardNameFromQuestion(question: string): string | null {
 function cardFlowResponse(cardName: string) {
   const menu = cardDetailMenu[cardName];
   if (!menu) return null;
-
   const quickReplies = menu.map(item => ({
     messageText: item.text, action: 'message' as const, label: item.label,
   }));
   quickReplies.push({ messageText: '제휴카드', action: 'message' as const, label: '💳 다른 카드사' });
   quickReplies.push({ messageText: '처음으로', action: 'message' as const, label: '🏠 처음으로' });
-
   return makeTextResponse(`💳 ${cardName} — 어떤 정보가 궁금하세요?`, [], quickReplies);
 }
 
-// "혜택", "실적제외", "실적확인" → 카드사 선택
 function cardReverseFlowResponse(topic: string) {
   const topicLabel: Record<string, string> = {
     '혜택': '혜택/할인', '할인': '혜택/할인', '카드 혜택': '혜택/할인', '카드 할인': '혜택/할인',
     '실적제외': '실적제외', '실적확인': '실적확인',
   };
   const label = topicLabel[topic] || topic;
-
   return makeTextResponse(
     `💳 ${label} — 어떤 카드사를 확인하시겠어요?`,
     [],
@@ -238,20 +228,15 @@ function directAnswer(results: { item: any; score: number }[]) {
   const quickReplies: any[] = [];
   const question = best.item.question;
 
-  // ── 카드 세부 답변이면 → [해당 카드 혜택] [다른 카드 조회] ──
+  // ── 카드 세부 답변 → [ㅇㅇ카드 다른 메뉴] [다른 카드사] 만 ──
   if (cardDetailQuestions.has(question)) {
     const cardName = getCardNameFromQuestion(question);
     if (cardName) {
-      // 해당 카드 혜택 버튼 (현재 답변이 혜택이 아닌 경우만)
-      const benefitItem = cardDetailMenu[cardName]?.find(i => i.label === '혜택/할인');
-      if (benefitItem && benefitItem.text !== question) {
-        quickReplies.push({ messageText: benefitItem.text, action: 'message', label: `${cardName} 혜택` });
-      }
       quickReplies.push({ messageText: cardName, action: 'message', label: `💳 ${cardName} 다른 메뉴` });
       quickReplies.push({ messageText: '제휴카드', action: 'message', label: '💳 다른 카드사' });
     }
   }
-  // ── 엑셀에서 설정한 버튼이 있으면 사용 ──
+  // ── 엑셀에서 설정한 버튼 ──
   else if (best.item.quickButtons && best.item.quickButtons.length > 0) {
     for (const btn of best.item.quickButtons.slice(0, 5)) {
       quickReplies.push({
@@ -260,7 +245,7 @@ function directAnswer(results: { item: any; score: number }[]) {
       });
     }
   }
-  // ── 없으면 검색 결과에서 관련 질문 추천 ──
+  // ── 없으면 관련 질문 추천 ──
   else {
     for (let i = 1; i < Math.min(results.length, 3); i++) {
       if (results[i].score > 5) {
@@ -298,12 +283,10 @@ function searchResultResponse(query: string) {
 
   const best = results[0];
 
-  // 1위가 확실하면 바로 답변
   if (best.score >= 30) {
     return directAnswer(results);
   }
 
-  // 충돌 감지
   if (results.length >= 2) {
     const scoreRatio = results[1].score / best.score;
     if (scoreRatio >= 0.7) {
@@ -325,10 +308,10 @@ function searchResultResponse(query: string) {
 }
 
 // ═══════════════════════════════════════
-// 특수 매핑 (버튼에서 들어오는 텍스트 → 원하는 답변으로 연결)
+// 특수 매핑
 // ═══════════════════════════════════════
 const specialMapping: Record<string, () => ReturnType<typeof makeTextResponse>> = {
-  // 계약 > 결합할인 → 결합할인율 답변 + 버튼
+  // 계약 > 결합할인 → 결합할인율 답변 + [결합할인 해지] [선납할인]
   '결합할인': () => {
     const results = searchFaq('결합할인율');
     if (results.length > 0) {
@@ -343,7 +326,7 @@ const specialMapping: Record<string, () => ReturnType<typeof makeTextResponse>> 
     }
     return searchResultResponse('결합할인율');
   },
-  // 계약 > 선납 → 선납 할인율 답변 + 버튼
+  // 계약 > 선납 → 선납 할인율 답변 + [선납금 결제] [선납금 결제 명의] [선납금 실적]
   '선납': () => {
     const results = searchFaq('선납 할인율');
     if (results.length > 0) {
@@ -358,6 +341,20 @@ const specialMapping: Record<string, () => ReturnType<typeof makeTextResponse>> 
       ]);
     }
     return searchResultResponse('선납 할인율');
+  },
+  // 계약 > 해지 → 해지 메뉴 (구독해약 + 이사 시 + 해외 이민)
+  '해지메뉴': () => {
+    return makeTextResponse(
+      '📋 해지 관련 어떤 내용이 궁금하세요?',
+      [],
+      [
+        { messageText: '구독해약', action: 'message', label: '구독 해약' },
+        { messageText: '이삿짐센터', action: 'message', label: '이사 시' },
+        { messageText: '해외 이민', action: 'message', label: '해외 이민' },
+        { messageText: '해약금', action: 'message', label: '해약금' },
+        { messageText: '처음으로', action: 'message', label: '🏠 처음으로' },
+      ]
+    );
   },
 };
 
@@ -388,7 +385,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(categoryMenuResponse(cat));
     }
 
-    // 3. 특수 매핑 (결합할인, 선납 등)
+    // 3. 특수 매핑 (결합할인, 선납, 해지메뉴)
     if (specialMapping[utterance]) {
       return NextResponse.json(specialMapping[utterance]());
     }
@@ -427,5 +424,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: 'ok', message: 'LG 구독 챗봇 API v5', timestamp: new Date().toISOString() });
+  return NextResponse.json({ status: 'ok', message: 'LG 구독 챗봇 API v6', timestamp: new Date().toISOString() });
 }
