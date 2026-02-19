@@ -128,24 +128,50 @@ function priceStepResponse(utterance: string) {
   ]);
 }
 
-// ── FAQ 검색 (충돌 시 자동 버튼) ──
+// ── 바로 답변 생성 헬퍼 ──
+function directAnswer(results: { item: any; score: number }[]) {
+  const best = results[0];
+  let answer = best.item.answer;
+  if (best.item.url && best.item.url.trim() !== '') {
+    answer += `\n\n🔗 ${best.item.urlButton || '상세보기'}: ${best.item.url}`;
+  }
+  const quickReplies: any[] = [];
+  for (let i = 1; i < Math.min(results.length, 3); i++) {
+    if (results[i].score > 5) {
+      const q = results[i].item.question;
+      quickReplies.push({
+        messageText: q, action: 'message',
+        label: `🔍 ${q.length > 12 ? q.substring(0, 12) + '..' : q}`,
+      });
+    }
+  }
+  quickReplies.push({ messageText: '처음으로', action: 'message', label: '🏠 처음으로' });
+  return makeTextResponse(answer, [], quickReplies);
+}
+
+// ── FAQ 검색 ──
 function searchResultResponse(query: string) {
   const results = searchFaq(query);
 
   if (results.length === 0) {
     return makeTextResponse(
-      `죄송합니다 😅 "${query}"에 대한 답변을 찾지 못했어요.\n\n💡 다른 키워드로 질문해보세요!\n• 예: "미납", "롯데카드 혜택", "해약금"\n• 모델명: "A720WA", "OLED55B4KW"\n\n또는 아래 메뉴에서 찾아보세요!`,
+      `😅 입력하신 내용에 대한 답변을 찾지 못했어요.\n\n💡 이렇게 질문해보세요!\n• 키워드로 검색: "해약금", "미납", "결합할인"\n• 카드사 혜택: "롯데카드 혜택", "신한카드 실적"\n• 구독료 조회: 모델명 입력 (예: A720WA)\n\n아래 버튼을 눌러보셔도 좋아요!`,
       [],
       [
-        { messageText: '계약', action: 'message', label: '📋 계약' },
+        { messageText: '간편조회', action: 'message', label: '🔗 사이트 주소' },
         { messageText: '제휴카드', action: 'message', label: '💳 제휴카드' },
-        { messageText: '가격표', action: 'message', label: '💰 가격 조회' },
+        { messageText: '고객센터', action: 'message', label: '📞 고객센터' },
         { messageText: '처음으로', action: 'message', label: '🏠 처음으로' },
       ]
     );
   }
 
   const best = results[0];
+
+  // 1위가 확실히 높으면 바로 답변 (점수 30 이상 또는 대표질문 정확 일치)
+  if (best.score >= 30) {
+    return directAnswer(results);
+  }
 
   // 충돌 감지: 1위와 2위 점수가 비슷하면 선택 버튼
   if (results.length >= 2) {
@@ -165,24 +191,8 @@ function searchResultResponse(query: string) {
     }
   }
 
-  // 1위 확실 → 바로 답변
-  let answer = best.item.answer;
-  if (best.item.url && best.item.url.trim() !== '') {
-    answer += `\n\n🔗 ${best.item.urlButton || '상세보기'}: ${best.item.url}`;
-  }
-
-  const quickReplies: any[] = [];
-  for (let i = 1; i < Math.min(results.length, 3); i++) {
-    if (results[i].score > 5) {
-      const q = results[i].item.question;
-      quickReplies.push({
-        messageText: q, action: 'message',
-        label: `🔍 ${q.length > 12 ? q.substring(0, 12) + '..' : q}`,
-      });
-    }
-  }
-  quickReplies.push({ messageText: '처음으로', action: 'message', label: '🏠 처음으로' });
-  return makeTextResponse(answer, [], quickReplies);
+  // 바로 답변
+  return directAnswer(results);
 }
 
 // ═══════════════════════════════════════
@@ -197,7 +207,7 @@ export async function POST(request: NextRequest) {
 
     const categoryKeywords: Record<string, string> = {
       '계약': '계약', '계약 안내': '계약',
-      '판촉': '제휴카드', '제휴카드': '제휴카드', '카드': '제휴카드',
+      '판촉': '제휴카드', '제휴카드': '제휴카드',
       '케어서비스': '케어서비스', '케어': '케어서비스',
       '가격표': '가격표', '가격 조회': '가격표', '가격조회': '가격표',
       '기타': '기타', '기타 문의': '기타',
