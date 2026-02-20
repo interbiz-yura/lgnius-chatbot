@@ -151,10 +151,11 @@ export function searchFaq(query: string): SearchResult[] {
         score += 5;
         matchedCount++;
       } else {
-        // 단어 단위 매칭 ("배송 현황 확인 하고 싶은데" → ["배송","현황","확인"] → "배송" 매칭)
+        // 단어 단위 매칭 (조사 제거된 단어)
         for (const word of queryWords) {
           if (word === kwLower || (word.length >= 2 && kwLower.includes(word)) || (kwLower.length >= 2 && word.includes(kwLower))) {
-            score += 8;
+            // 2글자 이하 범용 단어는 낮은 점수 (방법, 변경, 확인 등)
+            score += word.length <= 2 ? 3 : 8;
             matchedCount++;
             break;
           }
