@@ -3,7 +3,7 @@ import { searchFaq, findByQuestion, findMenuByKeyword, FaqItem } from '../../../
 import { searchPrice, formatPriceResponse, looksLikeModelName } from '../../../lib/priceSearch';
 
 // ═══════════════════════════════════════
-// 응답 생성 (faq.json의 quickButtons 기반)
+// 응답 생성 (faq.json quickButtons 기반)
 // ═══════════════════════════════════════
 function makeResponse(item: FaqItem) {
   let text = item.answer;
@@ -15,7 +15,7 @@ function makeResponse(item: FaqItem) {
   const quickReplies = (item.quickButtons || []).map(btn => ({
     messageText: btn.text,
     action: 'message' as const,
-    label: btn.label,
+    label: btn.label.length > 14 ? btn.label.substring(0, 14) + '..' : btn.label,
   }));
 
   return {
@@ -58,7 +58,7 @@ function priceStepResponse(utterance: string) {
   if (items.length === 1) {
     return makeTextResponse(formatPriceResponse(items[0]), [
       { messageText: '메인메뉴', action: 'message', label: '🏠 처음으로' },
-      { messageText: '가격표메뉴', action: 'message', label: '💰 다른 모델 조회' },
+      { messageText: '구독 가격 조회', action: 'message', label: '💰 다른 모델 조회' },
     ]);
   }
 
@@ -81,7 +81,7 @@ function priceStepResponse(utterance: string) {
     if (iTypes.length <= 1) {
       return makeTextResponse(formatPriceResponse(items[0]), [
         { messageText: '메인메뉴', action: 'message', label: '🏠 처음으로' },
-        { messageText: '가격표메뉴', action: 'message', label: '💰 다른 모델 조회' },
+        { messageText: '구독 가격 조회', action: 'message', label: '💰 다른 모델 조회' },
       ]);
     }
     const qr = iTypes.slice(0, 10).map(iv => ({ messageText: `${modelQuery}::${gFilter}::${hFilter}::${iv}`, action: 'message' as const, label: iv }));
@@ -91,7 +91,7 @@ function priceStepResponse(utterance: string) {
 
   return makeTextResponse(formatPriceResponse(items[0]), [
     { messageText: '메인메뉴', action: 'message', label: '🏠 처음으로' },
-    { messageText: '가격표메뉴', action: 'message', label: '💰 다른 모델 조회' },
+    { messageText: '구독 가격 조회', action: 'message', label: '💰 다른 모델 조회' },
   ]);
 }
 
@@ -105,8 +105,8 @@ function searchResultResponse(query: string) {
     return makeTextResponse(
       `😅 입력하신 내용에 대한 답변을 찾지 못했어요.\n\n💡 이렇게 질문해보세요!\n• 키워드로 검색: "해약금", "미납", "결합할인"\n• 카드사 혜택: "롯데카드 혜택", "신한카드 실적"\n• 구독료 조회: 모델명 입력 (예: A720WA)\n\n아래 버튼을 눌러보셔도 좋아요!`,
       [
-        { messageText: '간편조회', action: 'message', label: '🔗 사이트 주소' },
-        { messageText: '제휴카드메뉴', action: 'message', label: '💳 제휴카드' },
+        { messageText: '웹사이트 주소', action: 'message', label: '🌐 웹사이트' },
+        { messageText: '카드사별 자세히', action: 'message', label: '💳 제휴카드' },
         { messageText: 'LG 고객센터', action: 'message', label: '📞 고객센터' },
         { messageText: '메인메뉴', action: 'message', label: '🏠 처음으로' },
       ]
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(main ? makeResponse(main) : makeTextResponse('안녕하세요!'));
     }
 
-    // 1. question 정확히 일치 (버튼 클릭 시)
+    // 1. question 정확 일치 (버튼 클릭)
     const exactMatch = findByQuestion(utterance);
     if (exactMatch) {
       return NextResponse.json(makeResponse(exactMatch));
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(main ? makeResponse(main) : makeTextResponse('안녕하세요!'));
     }
 
-    // 3. 메뉴 키워드 매칭 (카드사명, 카테고리 등 → 서브메뉴 우선)
+    // 3. 메뉴 키워드 매칭 (카드사, 카테고리 등)
     const menuMatch = findMenuByKeyword(utterance);
     if (menuMatch) {
       return NextResponse.json(makeResponse(menuMatch));
@@ -195,5 +195,5 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: 'ok', message: 'LG 구독 챗봇 API v7', timestamp: new Date().toISOString() });
+  return NextResponse.json({ status: 'ok', message: 'LG 구독 챗봇 API v8', timestamp: new Date().toISOString() });
 }
