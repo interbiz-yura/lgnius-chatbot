@@ -135,28 +135,28 @@ export function searchFaq(query: string): SearchResult[] {
     }
 
     // 쿼리를 단어로 분리 (조사 제거된 queryWords 사용)
+    const matchedWords = new Set<string>();
+
     for (const keyword of item.keywords) {
       const kwLower = keyword.toLowerCase();
 
       if (queryConverted === kwLower) {
-        // 정확 일치
         score += 20;
         matchedCount++;
       } else if (queryConverted.includes(kwLower) && kwLower.length >= 2) {
-        // 쿼리 안에 키워드 포함 ("배송 현황 확인" 안에 "배송")
         score += 10 + kwLower.length;
         matchedCount++;
       } else if (kwLower.includes(queryConverted) && queryConverted.length >= 2) {
-        // 키워드 안에 쿼리 포함
         score += 5;
         matchedCount++;
       } else {
-        // 단어 단위 매칭 (조사 제거된 단어)
+        // 단어 단위 매칭 (같은 단어는 1회만 카운트)
         for (const word of queryWords) {
+          if (matchedWords.has(word)) continue;
           if (word === kwLower || (word.length >= 2 && kwLower.includes(word)) || (kwLower.length >= 2 && word.includes(kwLower))) {
-            // 2글자 이하 범용 단어는 낮은 점수 (방법, 변경, 확인 등)
             score += word.length <= 2 ? 3 : 8;
             matchedCount++;
+            matchedWords.add(word);
             break;
           }
         }
